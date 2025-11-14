@@ -78,21 +78,31 @@ function transformMessagesToLLMFormat(
 }
 
 /**
+ * User context for LLM request
+ */
+interface UserContext {
+  userId: string;
+  userName: string;
+  userEmail: string;
+}
+
+/**
  * Main function to send message to agent service
  *
- * @param userId - User ID making the request
  * @param message - User's message content
  * @param conversationHistory - Previous messages in the conversation
+ * @param userContext - User context for headers
  * @returns Agent's response
  */
 export async function sendMessage(
-  userId: string,
   message: string,
-  conversationHistory: Message[] = []
+  conversationHistory: Message[] = [],
+  userContext: UserContext
 ): Promise<AgentResponse> {
   try {
     logger.info('LLM agent processing message', {
-      userId,
+      userId: userContext.userId,
+      userName: userContext.userName,
       messageLength: message.length,
       historyLength: conversationHistory.length,
     });
@@ -100,11 +110,14 @@ export async function sendMessage(
     // Transform messages to LLM format
     const messages = transformMessagesToLLMFormat(conversationHistory, message);
 
-    // Call LLM backend service
+    // Call LLM backend service with user context headers
     const response = await fetch(config.agent.serviceUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-User-ID': userContext.userId,
+        'X-User-Name': userContext.userName,
+        'X-User-Email': userContext.userEmail,
       },
       body: JSON.stringify({ messages }),
       signal: AbortSignal.timeout(config.agent.timeout),
@@ -120,7 +133,8 @@ export async function sendMessage(
     const format = detectMessageFormat(data.response);
 
     logger.info('LLM agent response received', {
-      userId,
+      userId: userContext.userId,
+      userName: userContext.userName,
       responseLength: data.response?.length || 0,
       format,
       toolCalls: data.tool_calls_made,
@@ -138,7 +152,11 @@ export async function sendMessage(
       },
     };
   } catch (error) {
-    logger.error('LLM agent error', { error, userId });
+    logger.error('LLM agent error', {
+      error,
+      userId: userContext.userId,
+      userName: userContext.userName,
+    });
 
     // Return fallback response
     return {
@@ -153,40 +171,16 @@ export async function sendMessage(
 }
 
 /**
- * Future implementation placeholder
- * This function will replace the mock implementation with actual HTTP calls
+ * Deprecated: Use sendMessage instead
+ * This function is kept for backward compatibility
  */
 export async function sendMessageToRealAgent(
-  userId: string,
   message: string,
-  conversationHistory: Message[]
+  conversationHistory: Message[],
+  userContext: UserContext
 ): Promise<AgentResponse> {
-  // This will be implemented when the Agent Service is ready
-  // Example implementation:
-  /*
-  const response = await fetch(`${config.agent.serviceUrl}/chat`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${getServiceToken()}`,
-    },
-    body: JSON.stringify({
-      userId,
-      message,
-      history: conversationHistory,
-    }),
-    signal: AbortSignal.timeout(config.agent.timeout),
-  });
-
-  if (!response.ok) {
-    throw new Error('Agent service request failed');
-  }
-
-  return await response.json();
-  */
-
-  // For now, delegate to mock implementation
-  return sendMessage(userId, message, conversationHistory);
+  // Delegate to the main sendMessage function
+  return sendMessage(message, conversationHistory, userContext);
 }
 
 export default {

@@ -102,6 +102,10 @@ const options: swaggerJsdoc.Options = {
         description: 'Chat and conversation management endpoints',
       },
       {
+        name: 'LLM',
+        description: 'LLM service endpoints (no authentication required)',
+      },
+      {
         name: 'Health',
         description: 'Server health check endpoint',
       },

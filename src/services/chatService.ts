@@ -84,6 +84,16 @@ export async function sendMessage(data: SendMessageData): Promise<MessageRespons
       });
     }
 
+    // Get user details for LLM headers
+    const user = await prisma.user.findUnique({
+      where: { id: data.userId },
+      select: { id: true, name: true, email: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User not found', ErrorCodes.USER_NOT_FOUND);
+    }
+
     // Save user message
     const userMessage = await prisma.message.create({
       data: {
@@ -95,11 +105,15 @@ export async function sendMessage(data: SendMessageData): Promise<MessageRespons
       },
     });
 
-    // Get AI response from mock agent
+    // Get AI response from LLM agent
     const agentResponse = await agentClient.sendMessage(
-      data.userId,
       data.message,
-      conversationHistory
+      conversationHistory,
+      {
+        userId: user.id,
+        userName: user.name,
+        userEmail: user.email,
+      }
     );
 
     // Save assistant message

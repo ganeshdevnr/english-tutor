@@ -30,6 +30,32 @@ interface LLMResponse {
 
 
 /**
+ * Detect message format based on content
+ */
+function detectMessageFormat(content: string): 'text' | 'markdown' | 'code' {
+  // Check for markdown patterns (including code blocks)
+  const markdownPatterns = [
+    new RegExp('```[\\s\\S]*?```'), // Code blocks (triple backticks)
+    new RegExp('`[^`]+`'), // Inline code (single backticks)
+    /^#{1,6}\s/m, // Headers
+    /\*\*.*?\*\*/s, // Bold
+    /\*.*?\*/s, // Italic
+    /_.*?_/s, // Italic alternative
+    /^\s*[-*+]\s/m, // Unordered lists
+    /^\s*\d+\.\s/m, // Ordered lists
+    /\[.*?\]\(.*?\)/, // Links
+    /^\s*>\s/m, // Blockquotes
+    /\|.*\|.*\|/m, // Tables
+    /^---+$/m, // Horizontal rules
+    /~~.*?~~/s, // Strikethrough
+  ];
+
+  const hasMarkdown = markdownPatterns.some((pattern) => pattern.test(content));
+
+  return hasMarkdown ? 'markdown' : 'text';
+}
+
+/**
  * Transform database messages to LLM format
  */
 function transformMessagesToLLMFormat(
@@ -90,9 +116,13 @@ export async function sendMessage(
 
     const data = (await response.json()) as LLMResponse;
 
+    // Detect format based on content
+    const format = detectMessageFormat(data.response);
+
     logger.info('LLM agent response received', {
       userId,
       responseLength: data.response?.length || 0,
+      format,
       toolCalls: data.tool_calls_made,
       iterations: data.iterations,
     });
@@ -100,7 +130,7 @@ export async function sendMessage(
     // Return in AgentResponse format
     return {
       content: data.response,
-      format: 'text',
+      format,
       metadata: {
         model: 'llm-backend-v1',
         tokens: Math.floor(data.response.length / 4), // Rough approximation
